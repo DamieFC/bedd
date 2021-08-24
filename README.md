@@ -13,7 +13,7 @@ bedd is a tiny tab-based terminal text editor with mouse support, syntax highlig
 - Syntax highlighting, indentation and parentheses closing
 - Clean and tidy user interface
 - Automatic offline updates(thanks to cupd!)
-- Fully python and Java-prone(doesn't let you open .py and .java files, for your own sanity)
+- Fully Java-prone(doesn't let you open .java files, for your own sanity)
 
 ## Keybindings
 
@@ -76,7 +76,7 @@ This project is licensed with the nop license, check LICENSE for more details.
 
 (yes I do hate python and Java)
 
-### Forks that remove the python + Java check(shitty forks):
+### Forks that remove the Java check(shitty forks):
 
 - [@aa2006's fork](https://github.com/aa2006/bedd)
 
