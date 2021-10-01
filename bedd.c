@@ -8,7 +8,7 @@ void bedd_init(bedd_t *tab, const char *path) {
   if (!tab) {
     return;
   }
-
+  
   tab->lines = NULL;
   tab->line_cnt = 0;
 
@@ -134,7 +134,7 @@ void bedd_tabs(bedd_t *tabs, int tab_pos, int tab_cnt, int width) {
 }
 
 void bedd_stat(bedd_t *tab, const char *status) {
-  printf(BEDD_INVERT " bedd r%s " BEDD_NORMAL " %s%s (%d,%d) (%d/%d) %s", BEDD_VER, tab->path ? tab->path : "no name", tab->dirty ? "*" : "", tab->row + 1, tab->col + 1, tab->undo_pos, tab->undo_cnt, status);
+  printf(BEDD_INVERT " bedd r%s " BEDD_NORMAL " %s%s (%d,%d) (%d/%d) %s \x1B[K", BEDD_VER, tab->path ? tab->path : "no name", tab->dirty ? "*" : "", tab->row + 1, tab->col + 1, tab->undo_pos, tab->undo_cnt, status);
 }
 
 int bedd_color(bedd_t *tab, int state, int row, int col) {
@@ -149,12 +149,17 @@ int bedd_color(bedd_t *tab, int state, int row, int col) {
       tab->code = 1;
       return bedd_color_c(tab, state, row, col);
     } else if (!strcmp(tab->path + (strlen(tab->path) - 4), ".asm") ||
+               !strcmp(tab->path + (strlen(tab->path) - 4), ".inc") ||
                !strcmp(tab->path + (strlen(tab->path) - 2), ".s")) {
       tab->code = 1;
       return bedd_color_asm(tab, state, row, col);
     } else if (!strcmp(tab->path + (strlen(tab->path) - 3), ".sh")) {
       tab->code = 1;
       return bedd_color_sh(tab, state, row, col);
+    } else if (!strcmp(tab->path + (strlen(tab->path) - 3), ".js") ||
+               !strcmp(tab->path + (strlen(tab->path) - 5), ".json")) {
+      tab->code = 1;
+      return bedd_color_js(tab, state, row, col);
     }
   }
 
@@ -164,7 +169,7 @@ int bedd_color(bedd_t *tab, int state, int row, int col) {
   return 0;
 }
 
-void bedd_indent(bedd_t *tab) {
+void bedd_indent(bedd_t *tab, int col, int on_block) {
   if (tab->path) {
     if (!strcmp(tab->path + (strlen(tab->path) - 2), ".c") ||
         !strcmp(tab->path + (strlen(tab->path) - 2), ".h") ||
@@ -173,12 +178,16 @@ void bedd_indent(bedd_t *tab) {
         !strcmp(tab->path + (strlen(tab->path) - 4), ".cpp") ||
         !strcmp(tab->path + (strlen(tab->path) - 4), ".hpp") ||
         !strcmp(tab->path + (strlen(tab->path) - 4), ".cxx")) {
-      bedd_indent_c(tab);
+      bedd_indent_c(tab, col, on_block);
     } else if (!strcmp(tab->path + (strlen(tab->path) - 4), ".asm") ||
+               !strcmp(tab->path + (strlen(tab->path) - 4), ".inc") ||
                !strcmp(tab->path + (strlen(tab->path) - 2), ".s")) {
-      bedd_indent_asm(tab);
+      bedd_indent_asm(tab, col, on_block);
     } else if (!strcmp(tab->path + (strlen(tab->path) - 3), ".sh")) {
-      bedd_indent_sh(tab);
+      bedd_indent_sh(tab, col, on_block);
+    } else if (!strcmp(tab->path + (strlen(tab->path) - 3), ".js") ||
+               !strcmp(tab->path + (strlen(tab->path) - 5), ".json")) {
+      bedd_indent_js(tab, col, on_block);
     }
   }
 }
@@ -247,7 +256,7 @@ void bedd_write(bedd_t *tab, char c) {
     tab->col = 0;
 
     if (tab->code) {
-      bedd_indent(tab);
+      bedd_indent(tab, col, on_block);
     }
 
     int new_col = tab->col;
@@ -269,7 +278,7 @@ void bedd_write(bedd_t *tab, char c) {
 
     if (on_block) {
       bedd_write(tab, BEDD_CTRL('m'));
-
+      
       tab->row--;
       tab->col = tab->lines[tab->row].length;
 
@@ -278,6 +287,14 @@ void bedd_write(bedd_t *tab, char c) {
 
       bedd_write_raw(tab, ' ');
       bedd_write_raw(tab, ' ');
+    }
+    
+    if (tab->off_row > tab->row) {
+      tab->off_row = tab->row;
+    }
+
+    if (tab->off_row < tab->row - (tab->height - 3)) {
+      tab->off_row = tab->row - (tab->height - 3);
     }
 
     return;

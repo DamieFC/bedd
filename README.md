@@ -12,6 +12,7 @@ bedd is a tiny tab-based terminal text editor with mouse support, syntax highlig
 - Doesn't force the use of the mouse either(page buttons for scrolling, Ctrl+Left/Right for tab switching, etc.)
 - Syntax highlighting, indentation and parentheses closing
 - Clean and tidy user interface
+- Scrollable tree view(closing the editor or opening a new terminal and doing `ls` is too tedious, let's be honest)
 - Automatic offline updates(thanks to cupd!)
 - Fully Java-prone(doesn't let you open .java files, for your own sanity)
 
@@ -30,10 +31,13 @@ bedd is a tiny tab-based terminal text editor with mouse support, syntax highlig
 - Replace: `Ctrl+G`
 - Select all: `Ctrl+A`
 
+- Show/hide tree: `Ctrl+T`
+
 - Open file(new tab): `Ctrl+O`
 - New file(new tab): `Ctrl+N`
 - Save file: `Ctrl+S`
 - Close file/tab: `Ctrl+Q`
+- Run command: `Ctrl+E`
 
 - Prev. tab: `Ctrl+Left`
 - Next tab: `Ctrl+Right`
@@ -50,14 +54,17 @@ bedd is a tiny tab-based terminal text editor with mouse support, syntax highlig
 - Accept: `Return/Enter/Ctrl+M`
 
 NOTE: Add `~` before a find/replace query to only match whole words.
+
 NOTE: The clipboard actions(copy, cut and paste) all require `xclip` to be installed and in the PATH.
 
 ## Supported languages
 
 - C(`.c`, `.h`): full support
 - C++(`.cc`, `.hh`, `.cpp`, `.hpp`, `.cxx`): partial support, C++-specific features missing
-- x86 assembly(`.asm`, `.s`): full support, NASM syntax
+- x86 assembly(`.asm`, `.s`, `.inc`): full support, NASM syntax
 - bash/sh(`.sh`): partial support, has some errors with special cases
+- JavaScript(`.js`): full support
+- JSON(`.json`): full support, uses the JavaScript parser
 
 ## How to build
 
@@ -79,6 +86,10 @@ This project is licensed with the nop license, check LICENSE for more details.
 ### Forks that remove the Java check(shitty forks):
 
 - [@aa2006's fork](https://github.com/aa2006/bedd)
+- [@kushagra765's fork](https://github.com/kushagra765/bedd) This fork not only removes the check, but also uses the _far inferior_ Makefile system, so it's shitty ):<
+- [@DamieFC's fork](https://github.com/DamieFC/bedd) Hasn't removed the check yet, but his changes to README.md make it look like he will soooooooooooooooooo
+
+NOTE: Although my hate to python and Java is huge and real, everything offensive I say to people here is just said as a joke, so don't take it seriously.
 
 ### Forks that do NOT remove the python + Java check(good forks):
 

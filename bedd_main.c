@@ -74,6 +74,10 @@ int prompt_str(char *buffer, int length, int clear, const char *prompt) {
         if (pos) {
           buffer[--pos] = '\0';
         }
+      } else if (c == '\x1B') {
+        while (!(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z')) {
+          if (read(STDIN_FILENO, &c, 1) <= 0) break;
+        }
       } else if (c >= 32 && c < 127) {
         buffer[pos++] = c;
         buffer[pos] = '\0';
@@ -96,6 +100,76 @@ int prompt_str(char *buffer, int length, int clear, const char *prompt) {
   return 1;
 }
 
+int dir_tree(int row, int col, int height, const char *path) {
+  struct dirent *entry;
+  DIR *dir;
+
+  if (!(dir = opendir(path))) {
+    return row;
+  }
+
+  while ((entry = readdir(dir)) != NULL) {
+    if (entry->d_name[0] == '.') {
+      continue;
+    }
+
+    char new_path[strlen(path) + strlen(entry->d_name) + 2];  
+    sprintf(new_path, "%s/%s", path, entry->d_name);
+
+    if (entry->d_type == DT_DIR) {
+      if (row > 1 && row < height) {
+        printf("\x1B[%d;%dH", row, 1);
+        
+        for (int i = 1; i < col; i++) {
+          printf(" ");
+        }
+        
+        printf("+ ");
+        int pos = 0;
+
+        for (int i = col; i < BEDD_TREE - 2; i++) {
+          if (pos < strlen(entry->d_name)) {
+            printf("%c", entry->d_name[pos]);
+          } else {
+            printf(" ");
+          }
+
+          pos++;
+        }
+      }
+
+      row = dir_tree(row + 1, col + 2, height, new_path);
+    } else {
+      if (row > 1 && row < height) {
+        printf("\x1B[%d;%dH", row, 1);
+        
+        for (int i = 1; i < col; i++) {
+          printf(" ");
+        }
+        
+        printf("- ");
+        int pos = 0;
+
+        for (int i = col; i < BEDD_TREE - 2; i++) {
+          if (pos < strlen(entry->d_name)) {
+            printf("%c", entry->d_name[pos]);
+          } else {
+            printf(" ");
+          }
+
+          pos++;
+        }
+      }
+
+      row++;
+    }
+  }
+
+  closedir(dir);
+  return row;
+}
+
+
 int main(int argc, const char **argv) {
   cupd_init(argc, argv);
 
@@ -108,7 +182,11 @@ int main(int argc, const char **argv) {
   struct stat file;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i] + (strlen(argv[i]) - 5), ".java") && strcmp(argv[i] + (strlen(argv[i]) - 3), ".py")) {
+    if (strcmp(argv[i] + (strlen(argv[i]) -  5), ".java") &&
+        strcmp(argv[i] + (strlen(argv[i]) -  3), ".py") &&
+        strcmp(argv[i] + (strlen(argv[i]) -  7), ".python") &&
+        strcmp(argv[i] + (strlen(argv[i]) - 10), ".gordavaca") &&
+        strcmp(argv[i] + (strlen(argv[i]) -  3), ".gv")) {
       if (stat(argv[i], &file) >= 0) {
         tabs = realloc(tabs, (++tab_cnt) * sizeof(bedd_t));
         bedd_init(tabs + (tab_cnt - 1), argv[i]);
@@ -122,10 +200,15 @@ int main(int argc, const char **argv) {
   }
 
   int first = 1;
+  int show_tree = 0;
+
+  int off_dir = 0;
+  int tmp_dir = -1;
+  int dir_len = 25;
 
   char status[1024] = {0};
 
-  printf("\x1B[?47h");
+  printf("\x1B[2J\x1B[H\x1B[?47h");
   printf("\x1B[?1000;1002;1006;1015h");
   printf(BEDD_WHITE);
 
@@ -168,6 +251,22 @@ int main(int argc, const char **argv) {
 
           if (tab_pos >= tab_cnt) {
             tab_pos = tab_cnt - 1;
+          }
+        }
+      } else if (c == BEDD_CTRL('t')) {
+        show_tree = 1 - show_tree;
+      } else if (c == BEDD_CTRL('e')) {
+        char buffer[1024];
+
+        if (prompt_str(buffer, 1024, 1, "command:")) {
+          if (strlen(buffer)) {
+            printf("\x1B[2J\x1B[H\r\n" BEDD_NORMAL BEDD_WHITE);
+            raw_off();
+            
+            system(buffer);
+            
+            raw_on();
+            printf("\x1B[2J");
           }
         }
       } else if (c == BEDD_CTRL('z')) {
@@ -263,7 +362,11 @@ int main(int argc, const char **argv) {
           if (strlen(buffer)) {
             if (stat(buffer, &file) < 0) {
               sprintf(status, "| cannot open file: \"%s\"", buffer);
-            } else if (!strcmp(buffer + (strlen(buffer) - 5), ".java") || !strcmp(buffer + (strlen(buffer) - 3), ".py")) {
+            } else if (!strcmp(buffer + (strlen(buffer) -  5), ".java") ||
+                       !strcmp(buffer + (strlen(buffer) -  3), ".py") ||
+                       !strcmp(buffer + (strlen(buffer) -  7), ".python") ||
+                       !strcmp(buffer + (strlen(buffer) - 10), ".gordavaca") ||
+                       !strcmp(buffer + (strlen(buffer) -  3), ".gv")) {
               sprintf(status, "| file too dangerous: \"%s\"", buffer);
             } else {
               tabs = realloc(tabs, (tab_cnt + 1) * sizeof(bedd_t));
@@ -294,8 +397,11 @@ int main(int argc, const char **argv) {
         }
 
         if (!bedd_save(tabs + tab_pos) ||
-            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) - 5), ".java") ||
-            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) - 3), ".py")) {
+            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) -  5), ".java") ||
+            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) -  3), ".py") ||
+            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) -  7), ".python") ||
+            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) - 10), ".gordavaca") ||
+            !strcmp(tabs[tab_pos].path + (strlen(tabs[tab_pos].path) -  3), ".gv")) {
           if (prompted) {
             sprintf(status, "| cannot save file: \"%s\"", tabs[tab_pos].path);
 
@@ -423,8 +529,10 @@ int main(int argc, const char **argv) {
                 bedd_left(tabs + tab_pos, 0);
               } else if (seq[1] == 'H') {
                 tabs[tab_pos].col = 0;
+                tabs[tab_pos].sel_col = tabs[tab_pos].col;
               } else if (seq[1] == 'F') {
                 tabs[tab_pos].col = tabs[tab_pos].lines[tabs[tab_pos].row].length;
+                tabs[tab_pos].sel_col = tabs[tab_pos].col;
               } else if (seq[1] == '<') {
                 if (read(STDIN_FILENO, &seq[2], 1) >= 1) {
                   if (seq[2] == '0') {
@@ -471,7 +579,7 @@ int main(int argc, const char **argv) {
                           int scroll_start = ((tabs[tab_pos].off_row) * (height - 2)) / tabs[tab_pos].line_cnt;
                           int scroll_end   = ((tabs[tab_pos].off_row + (height - 2)) * (height - 2)) / tabs[tab_pos].line_cnt;
 
-                          if (row - 1 >= scroll_start && row - 1 <= scroll_end) {
+                          if (row - 2 >= scroll_start && row - 2 <= scroll_end) {
                             tabs[tab_pos].tmp_row = (row - 1) - scroll_start;
                           } else {
                             tabs[tab_pos].tmp_row = (scroll_end - scroll_start) / 2;
@@ -483,7 +591,23 @@ int main(int argc, const char **argv) {
                           tabs[tab_pos].tmp_row = -1;
                         }
 
-                        if (col < width && row > 1 && row < height) {
+                        if (show_tree && col <= BEDD_TREE && row > 1 && row < height) {
+                          int scroll_start = (off_dir * (height - 2)) / dir_len;
+                          int scroll_end   = ((off_dir + (height - 2)) * (height - 2)) / dir_len;
+
+                          if (row - 2 >= scroll_start && row - 2 <= scroll_end) {
+                            tmp_dir = (row - 1) - scroll_start;
+                          } else {
+                            tmp_dir = (scroll_end - scroll_start) / 2;
+
+                            int scroll = (row - 1) - tmp_dir;
+                            off_dir = (dir_len * scroll) / (height - 2);
+                          }
+                        } else {
+                          tmp_dir = -1;
+                        }
+
+                        if (!(show_tree && col <= BEDD_TREE) && col < width && row > 1 && row < height) {
                           tabs[tab_pos].row = (row - 2) + tabs[tab_pos].off_row;
 
                           if (tabs[tab_pos].row < 0) {
@@ -506,7 +630,7 @@ int main(int argc, const char **argv) {
                             line_len++;
                           }
 
-                          tabs[tab_pos].col = col - (line_len + 6);
+                          tabs[tab_pos].col = col - (line_len + (show_tree * BEDD_TREE) + 6);
 
                           if (tabs[tab_pos].col < 0) {
                             tabs[tab_pos].col = 0;
@@ -553,6 +677,9 @@ int main(int argc, const char **argv) {
                         if (tabs[tab_pos].tmp_row != -1) {
                           int scroll = (row - 1) - tabs[tab_pos].tmp_row;
                           tabs[tab_pos].off_row = (tabs[tab_pos].line_cnt * scroll) / (height - 2);
+                        } else if (tmp_dir != -1) {
+                          int scroll = (row - 1) - tmp_dir;
+                          off_dir = (dir_len * scroll) / (height - 2);
                         } else {
                           if (col < width && row > 1 && row < height) {
                             tabs[tab_pos].row = (row - 2) + tabs[tab_pos].off_row;
@@ -577,7 +704,7 @@ int main(int argc, const char **argv) {
                               line_len++;
                             }
 
-                            tabs[tab_pos].col = col - (line_len + 6);
+                            tabs[tab_pos].col = col - (line_len + (show_tree * BEDD_TREE) + 6);
 
                             if (tabs[tab_pos].col < 0) {
                               tabs[tab_pos].col = 0;
@@ -643,7 +770,7 @@ int main(int argc, const char **argv) {
                     }
                   }
 
-                  if (seq[2] == '0' && c == 'M') {
+                  if (tmp_dir == -1 && tabs[tab_pos].tmp_row == -1 && seq[2] == '0' && c == 'M') {
                     tabs[tab_pos].sel_row = tabs[tab_pos].row;
                     tabs[tab_pos].sel_col = tabs[tab_pos].col;
                   }
@@ -681,7 +808,7 @@ int main(int argc, const char **argv) {
     }
 
     printf("\x1B[?25l");
-    printf("\x1B[2J\x1B[H" BEDD_NORMAL);
+    printf("\x1B[H" BEDD_NORMAL);
 
     bedd_tabs(tabs, tab_pos, tab_cnt, width);
 
@@ -690,21 +817,26 @@ int main(int argc, const char **argv) {
     } else if (tabs[tab_pos].off_row >= tabs[tab_pos].line_cnt - (height - 2)) {
       if (tabs[tab_pos].line_cnt - (height - 2) > 0) {
         tabs[tab_pos].off_row = tabs[tab_pos].line_cnt - (height - 2);
+      } else {
+        tabs[tab_pos].off_row = 0;
       }
     }
 
-    int scroll_size = ((height - 2) * (height - 2) + (tabs[tab_pos].line_cnt - 1)) / tabs[tab_pos].line_cnt;
-
-    if (scroll_size < 1) {
-      scroll_size = 1;
-    }
-
-    if (scroll_size > height - 2) {
-      scroll_size = height - 2;
+    if (off_dir < 0) {
+      off_dir = 0;
+    } else if (off_dir >= dir_len - (height - 2)) {
+      if (dir_len - (height - 2) > 0) {
+        off_dir = dir_len - (height - 2);
+      } else {
+        off_dir = 0;
+      }
     }
 
     int scroll_start = ((tabs[tab_pos].off_row) * (height - 2)) / tabs[tab_pos].line_cnt;
     int scroll_end   = ((tabs[tab_pos].off_row + (height - 2)) * (height - 2)) / tabs[tab_pos].line_cnt;
+
+    int dir_start = (off_dir * (height - 2)) / dir_len;
+    int dir_end   = ((off_dir + (height - 2)) * (height - 2)) / dir_len;
 
     int line_len = 0;
     int line_tmp = tabs[tab_pos].line_cnt;
@@ -723,7 +855,34 @@ int main(int argc, const char **argv) {
 
     int state = 0;
 
+    printf(BEDD_NORMAL BEDD_WHITE);
+
+    if (show_tree) {
+      dir_len = dir_tree(2 - off_dir, 1, height, ".") - (2 - off_dir);
+
+      for (int i = dir_len; i < height - 1; i++) {
+        printf("\x1B[%d;%dH", i + 2, 1);
+
+        for (int j = 0; j < BEDD_TREE - 1; j++) {
+          printf(" ");
+        }
+      }
+    }
+
     for (int i = 0; i < height - 2; i++, row++) {
+      printf("\x1B[%d;%dH", i + 2, 1 + (show_tree * (BEDD_TREE - 1)));
+      printf(BEDD_NORMAL BEDD_WHITE);
+
+      if (show_tree) {
+        if (i >= dir_start && i <= dir_end) {
+          printf(BEDD_INVERT);
+        } else {
+          printf(BEDD_NORMAL);
+        }
+
+        printf("|" BEDD_NORMAL);
+      }
+
       if (row >= 0 && row < tabs[tab_pos].line_cnt) {
         if (tabs[tab_pos].row == row) {
           printf(BEDD_INVERT "  %*d  " BEDD_NORMAL " ", line_len, row + 1);
@@ -732,9 +891,7 @@ int main(int argc, const char **argv) {
           printf(BEDD_NORMAL "  %*d |" BEDD_NORMAL " ", line_len, row + 1);
         }
 
-        printf(BEDD_WHITE);
-
-        for (int j = 0; j < tabs[tab_pos].lines[row].length && j < width - (line_len + 7); j++) {
+        for (int j = 0; j < tabs[tab_pos].lines[row].length && j < width - (line_len + (show_tree * BEDD_TREE) + 7); j++) {
           printf(BEDD_SELECT);
 
           if (row == tabs[tab_pos].sel_row) {
@@ -781,7 +938,8 @@ int main(int argc, const char **argv) {
         printf(BEDD_NORMAL "  %*s :" BEDD_NORMAL " ", line_len, "");
       }
 
-      printf(BEDD_DEFAULT "\x1B[%d;%dH", i + 2, width);
+      printf(BEDD_DEFAULT "\x1B[K");
+      printf("\x1B[%d;%dH", i + 2, width);
 
       if (i >= scroll_start && i <= scroll_end) {
         printf(BEDD_INVERT);
@@ -793,6 +951,7 @@ int main(int argc, const char **argv) {
       printf(BEDD_NORMAL "\r\n");
     }
 
+    printf("\x1B[%d;%dH", height, 0);
     bedd_stat(tabs + tab_pos, status);
 
     if (strlen(status)) {
@@ -808,7 +967,7 @@ int main(int argc, const char **argv) {
     if (pos) {
       printf("\x1B[3 q");
       printf("\x1B[?25h");
-      printf("\x1B[%d;%dH", pos, col + line_len + 6);
+      printf("\x1B[%d;%dH", pos, col + line_len + (show_tree * BEDD_TREE) + 6);
     }
 
     fflush(stdout);
